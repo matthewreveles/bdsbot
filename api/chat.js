@@ -1,12 +1,12 @@
+// api/chat.js
 import OpenAI from "openai";
 import { BDSBotPrompt } from "../config/systemPrompt.js";
 
-// Create OpenAI client
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Vercel expects a default export handler
+// Vercel handler
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -14,9 +14,10 @@ export default async function handler(req, res) {
 
   try {
     const userMessages = req.body.messages || [];
-    const model = "gpt-5"; // force GPT-5 every time
 
-    // Prepend system prompt
+    // Always force GPT-5
+    const model = "gpt-5";
+
     const messages = [
       { role: "system", content: BDSBotPrompt },
       ...userMessages,
@@ -27,10 +28,9 @@ export default async function handler(req, res) {
       messages,
     });
 
-    res.json({ reply: response.choices[0].message.content });
+    res.status(200).json({ reply: response.choices[0].message.content });
   } catch (err) {
-    console.error("Chat error:", err);
+    console.error("API error:", err);
     res.status(500).json({ error: err.message });
   }
 }
-
