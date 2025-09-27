@@ -1,65 +1,57 @@
-(() => {
-  // --- CONFIG ---
-  const API_URL = "https://project-rurvf.vercel.app/api/chat"; // your API
-  const MAX_TOKENS = 950; // cap responses for speed + cost
-
-  // helpers
+(function () {
   const $ = (id) => document.getElementById(id);
-  const append = (text, color = "#333") => {
-    const box = $("chat-box");
-    const div = document.createElement("div");
-    div.textContent = text;
-    div.style.margin = "4px 0";
-    div.style.color = color;
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-  };
 
-  // expose for the button
-  window.sendMessage = async function sendMessage() {
+  window.sendMessage = async () => {
     const input = $("user-input");
     const box = $("chat-box");
-    const message = (input.value || "").trim();
+    const message = input.value.trim();
     if (!message) return;
 
-    append("You: " + message);
+    // show chat box if hidden
+    box.style.display = "block";
+
+    // user bubble
+    const user = document.createElement("div");
+    user.textContent = "You: " + message;
+    user.style.margin = "4px 0";
+    box.appendChild(user);
+    box.scrollTop = box.scrollHeight;
     input.value = "";
 
+    // typing indicator
+    const typing = document.createElement("div");
+    typing.textContent = "BDSBot is thinking...";
+    typing.style.fontStyle = "italic";
+    typing.style.opacity = "0.7";
+    box.appendChild(typing);
+    box.scrollTop = box.scrollHeight;
+
     try {
-      const resp = await fetch(API_URL, {
+      const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // backend already forces GPT-5; we still include the cap here
-          max_tokens: MAX_TOKENS,
-          messages: [{ role: "user", content: message }],
+          messages: [{ role: "user", content: message }]
         }),
       });
 
-      // If your API streams as text/plain, handle stream; else fallback to JSON
-      const ctype = (resp.headers.get("content-type") || "").toLowerCase();
+      if (!resp.body) {
+        typing.textContent = "BDSBot: (no response)";
+        return;
+      }
 
-      if (ctype.includes("text/plain")) {
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        const bot = document.createElement("div");
-        bot.textContent = "BDSBot: ";
-        bot.style.margin = "4px 0";
-        bot.style.color = "#222";
-        box.appendChild(bot);
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      typing.textContent = "BDSBot: ";
 
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          bot.textContent += decoder.decode(value, { stream: true });
-          box.scrollTop = box.scrollHeight;
-        }
-      } else {
-        const data = await resp.json();
-        append("BDSBot: " + (data.reply || "No response"));
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        typing.textContent += decoder.decode(value, { stream: true });
+        box.scrollTop = box.scrollHeight;
       }
     } catch (err) {
-      append("Error: " + err.message, "red");
+      typing.textContent = "Error: " + err.message;
     }
   };
 
@@ -68,7 +60,10 @@
     const input = $("user-input");
     if (input) {
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") window.sendMessage();
+        if (e.key === "Enter") {
+          e.preventDefault();
+          window.sendMessage();
+        }
       });
     }
   });
