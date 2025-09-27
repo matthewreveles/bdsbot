@@ -1,92 +1,100 @@
 // public/js/bdsbot.js
-(() => {
-  const $ = (id) => document.getElementById(id);
+(function () {
+  // === CONFIG ===
+  const API_BASE = "https://project-rurvf.vercel.app"; // <- update if your deployment uses a different URL
+  const ENDPOINT = API_BASE + "/api/chat";
 
-  const box = $("chat-box");
-  const input = $("user-input");
+  // helper
+  function $(id) { return document.getElementById(id); }
 
-  // Append message to chat box
-  const append = (text, color = "black", italic = false) => {
+  function appendBubble(text, classes = "") {
+    const box = $("chat-box");
+    if (!box) return;
     const div = document.createElement("div");
-    div.style.color = color;
-    div.style.margin = "4px 0";
-    if (italic) {
-      div.style.fontStyle = "italic";
-    }
+    div.style.margin = "6px 0";
+    div.className = classes;
     div.textContent = text;
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
-    box.style.display = "block"; // reveal chat box when a message arrives
-  };
+  }
 
-  // Typing indicator
-  let typingEl = null;
-  const showTyping = () => {
-    if (!typingEl) {
-      typingEl = document.createElement("div");
-      typingEl.style.fontStyle = "italic";
-      typingEl.style.color = "#888";
-      typingEl.textContent = "BDSBot is typing…";
-      box.appendChild(typingEl);
-      box.scrollTop = box.scrollHeight;
-    }
-  };
-  const hideTyping = () => {
-    if (typingEl) {
-      typingEl.remove();
-      typingEl = null;
-    }
-  };
+  function showBox() {
+    const box = $("chat-box");
+    if (!box) return;
+    box.style.display = "block";
+  }
 
-  // Main send function
-  window.sendMessage = async () => {
+  function hideBox() {
+    const box = $("chat-box");
+    if (!box) return;
+    box.style.display = "none";
+  }
+
+  // typing indicator element we append temporarily
+  function makeTypingIndicator() {
+    const el = document.createElement("div");
+    el.id = "typing-indicator";
+    el.style.fontStyle = "italic";
+    el.textContent = "BDSBot: …";
+    return el;
+  }
+
+  // send message
+  window.sendMessage = async function sendMessage() {
+    const input = $("user-input");
+    const chatBox = $("chat-box");
+    if (!input) return;
     const text = input.value.trim();
     if (!text) return;
 
-    append("You: " + text, "#222");
+    // show user and open the box
+    showBox();
+    appendBubble("You: " + text, "user-bubble");
     input.value = "";
 
-    showTyping();
+    // add typing indicator
+    const typing = makeTypingIndicator();
+    chatBox.appendChild(typing);
+    chatBox.scrollTop = chatBox.scrollHeight;
 
     try {
-      const resp = await fetch("https://project-rurvf.vercel.app/api/chat", {
+      const payload = { messages: [{ role: "user", content: text }] };
+      const resp = await fetch(ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [{ role: "user", content: text }] }),
+        body: JSON.stringify(payload),
       });
 
-      hideTyping();
+      // remove typing indicator (we will append actual response)
+      typing.remove();
 
       if (!resp.ok) {
-        append("Error: HTTP " + resp.status, "red");
+        const txt = await resp.text().catch(() => "");
+        appendBubble("Error: " + (resp.status + " " + resp.statusText), "error");
+        console.error("API returned non-ok:", resp.status, resp.statusText, txt);
         return;
       }
 
-      // Stream response
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let botLine = document.createElement("div");
-      botLine.innerHTML = "<em>BDSBot:</em> ";
-      box.appendChild(botLine);
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        botLine.textContent += decoder.decode(value, { stream: true });
-        box.scrollTop = box.scrollHeight;
-      }
+      const data = await resp.json();
+      const reply = data.reply || "No response";
+      appendBubble("BDSBot: " + reply, "bot-bubble");
     } catch (err) {
-      hideTyping();
-      append("Error: " + err.message, "red");
+      // network error
+      typing.remove();
+      appendBubble("Error: " + (err.message || err), "error");
+      console.error("Fetch failed:", err);
     }
   };
 
-  // Enter key submits
+  // DOM ready: wire up Enter key to trigger sendMessage
   window.addEventListener("DOMContentLoaded", () => {
-    if (input) {
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") window.sendMessage();
-      });
-    }
+    const input = $("user-input");
+    if (!input) return;
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
   });
 })();
