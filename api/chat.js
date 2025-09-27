@@ -1,25 +1,22 @@
-// api/chat.js
-
-import express from "express";
-import cors from "cors";
 import OpenAI from "openai";
 import { BDSBotPrompt } from "../config/systemPrompt.js";
 
-const app = express();
-const port = process.env.PORT || 3000;
-
-app.use(cors());
-app.use(express.json());
-
+// Create OpenAI client
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-app.post("/api/chat", async (req, res) => {
+// Vercel expects a default export handler
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   try {
     const userMessages = req.body.messages || [];
-const model = "gpt-5"; // always use GPT-5
-    // Always prepend system prompt
+    const model = "gpt-5"; // force GPT-5 every time
+
+    // Prepend system prompt
     const messages = [
       { role: "system", content: BDSBotPrompt },
       ...userMessages,
@@ -30,14 +27,10 @@ const model = "gpt-5"; // always use GPT-5
       messages,
     });
 
-    const reply = response.choices[0].message.content;
-    res.json({ reply });
-  } catch (error) {
-    console.error("Chat error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.json({ reply: response.choices[0].message.content });
+  } catch (err) {
+    console.error("Chat error:", err);
+    res.status(500).json({ error: err.message });
   }
-});
+}
 
-app.listen(port, () => {
-  console.log(`✅ BDSBot API running at http://localhost:${port}`);
-});
