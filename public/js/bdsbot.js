@@ -1,7 +1,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
 
-  // Append helper
+  // Append helper (plain text fallback)
   function append(content, color = "black", italic = false) {
     const box = $("chat-box");
     if (!box) return;
@@ -71,7 +71,20 @@
       }
 
       const data = await resp.json();
-      append("BDSBot: " + (data.reply || "No response"), "black");
+
+      // ✅ Render Markdown safely
+      const box = $("chat-box");
+      const wrapper = document.createElement("div");
+
+      // Convert Markdown to HTML
+      let parsed = marked.parse(data.reply || "No response");
+
+      // Downstyle headings: convert h1/h2/h3 → strong inline labels
+      parsed = parsed.replace(/<h[1-6]>(.*?)<\/h[1-6]>/g, "<strong>$1</strong><br>");
+
+      wrapper.innerHTML = "<strong>BDSBot:</strong> " + parsed;
+      box.appendChild(wrapper);
+      box.scrollTop = box.scrollHeight;
     } catch (err) {
       hideTyping();
       append("Error: " + err.message, "red");
@@ -88,3 +101,4 @@
     }
   });
 })();
+
