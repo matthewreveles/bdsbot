@@ -18,8 +18,7 @@ const client = new OpenAI({
 app.post("/api/chat", async (req, res) => {
   try {
     const userMessages = req.body.messages || [];
-    const model = req.body.model || "gpt-5"; // user can override model if desired
-
+const model = "gpt-5"; // always use GPT-5
     // Always prepend system prompt
     const messages = [
       { role: "system", content: BDSBotPrompt },
