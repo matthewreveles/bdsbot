@@ -23,15 +23,28 @@ export default async function handler(req, res) {
       ...userMessages,
     ];
 
-    const response = await client.chat.completions.create({
+    // Stream response
+    const stream = await client.chat.completions.stream({
       model,
       messages,
+      max_tokens: 950, // cap response length
     });
 
-    res.status(200).json({ reply: response.choices[0].message.content });
+    res.writeHead(200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Transfer-Encoding": "chunked",
+    });
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (delta) {
+        res.write(delta);
+      }
+    }
+
+    res.end();
   } catch (err) {
     console.error("API error:", err);
     res.status(500).json({ error: err.message });
   }
 }
-
