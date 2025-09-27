@@ -1,71 +1,79 @@
-(function () {
+(() => {
   const $ = (id) => document.getElementById(id);
 
+  // Append message to chat box
+  const append = (text, italic = false, color = "black") => {
+    const box = $("chat-box");
+    const div = document.createElement("div");
+    div.textContent = text;
+    div.style.margin = "4px 0";
+    div.style.color = color;
+    if (italic) {
+      div.style.fontStyle = "italic";
+    }
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  };
+
+  // Main sendMessage handler
   window.sendMessage = async () => {
     const input = $("user-input");
     const box = $("chat-box");
     const message = input.value.trim();
     if (!message) return;
 
-    // show chat box if hidden
-    box.style.display = "block";
-
-    // user bubble
-    const user = document.createElement("div");
-    user.textContent = "You: " + message;
-    user.style.margin = "4px 0";
-    box.appendChild(user);
-    box.scrollTop = box.scrollHeight;
+    // Reset input
     input.value = "";
 
-    // typing indicator
-    const typing = document.createElement("div");
-    typing.textContent = "BDSBot is thinking...";
-    typing.style.fontStyle = "italic";
-    typing.style.opacity = "0.7";
-    box.appendChild(typing);
-    box.scrollTop = box.scrollHeight;
+    // User bubble
+    append("You: " + message);
+
+    // Add bot label + typing indicator
+    const botBubble = document.createElement("div");
+    botBubble.innerHTML = "<em>BDSBot: ...</em>";
+    botBubble.style.margin = "4px 0";
+    box.appendChild(botBubble);
+
+    // Make chat visible if hidden
+    box.style.display = "block";
 
     try {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [{ role: "user", content: message }]
+          messages: [{ role: "user", content: message }],
         }),
       });
 
-      if (!resp.body) {
-        typing.textContent = "BDSBot: (no response)";
-        return;
+      if (!resp.ok) {
+        throw new Error("HTTP " + resp.status);
       }
 
+      // Stream response
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
-      typing.textContent = "BDSBot: ";
+
+      botBubble.innerHTML = "<em>BDSBot:</em> "; // reset from "..."
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        typing.textContent += decoder.decode(value, { stream: true });
+        botBubble.innerHTML += decoder.decode(value, { stream: true });
         box.scrollTop = box.scrollHeight;
       }
     } catch (err) {
-      typing.textContent = "Error: " + err.message;
+      append("Error: " + err.message, false, "red");
     }
   };
 
-  // allow pressing Enter to send
+  // Allow pressing Enter to send
   window.addEventListener("DOMContentLoaded", () => {
     const input = $("user-input");
     if (input) {
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          window.sendMessage();
-        }
+        if (e.key === "Enter") window.sendMessage();
       });
     }
   });
 })();
-
