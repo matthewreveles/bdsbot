@@ -1,7 +1,6 @@
 // api/chat.js
 
 import OpenAI from "openai";
-import { BDSBotPrompt } from "../config/systemPrompt.js";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -9,37 +8,31 @@ const client = new OpenAI({
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    res.status(405).json({ error: "Method not allowed" });
+    return;
   }
 
   try {
-    const userMessages = req.body.messages || [];
+    const { messages } = req.body;
 
-    // Always force GPT-5
-    const model = "gpt-5";
-
-    const messages = [
-      { role: "system", content: BDSBotPrompt },
-      ...userMessages,
-    ];
-
-    // Stream response
-    const stream = await client.chat.completions.stream({
-      model,
-      messages,
-      max_tokens: 950, // cap response length
+    // Start streaming completion
+    const completion = await client.chat.completions.create({
+      model: "gpt-5",       // force GPT-5
+      messages,             // incoming conversation
+      max_tokens: 950,      // cap response length
+      stream: true,         // enable streaming
     });
 
+    // Set headers for streaming
     res.writeHead(200, {
       "Content-Type": "text/plain; charset=utf-8",
       "Transfer-Encoding": "chunked",
     });
 
-    for await (const chunk of stream) {
+    // Stream chunks back to client
+    for await (const chunk of completion) {
       const delta = chunk.choices[0]?.delta?.content || "";
-      if (delta) {
-        res.write(delta);
-      }
+      if (delta) res.write(delta);
     }
 
     res.end();
@@ -48,3 +41,4 @@ export default async function handler(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
+
